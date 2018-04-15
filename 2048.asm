@@ -290,7 +290,7 @@ CellTable = $80              ; 29 ($1D) bytes (16 cells + 13 sentinels)
 
 CellCursor = $9D             ; Table offset of the "current" cell on grid setup
 
-; Frame count based RNG, used to add tiles and title screen rainbow
+; LFSR based RNG, used to add tiles
 RandomNumber       = $9E
 
 ; Counter to display "animated" tiles (merged / new)
@@ -354,6 +354,8 @@ CurrentBGColor = $CB         ; Ensures invisible score keeps invisible during
 
 DidMerge2048 = $CC           ; 0 if no 2048 was reached; 11 (Cell2048) if we did
 Party2048Counter = $CD       ; 2048 effects counter (and ensures they play only once)
+
+FrameCounter = $CE           ; increases by 1 every frame
 
 ;;;;;;;;;;;;;;;
 ;; BOOTSTRAP ;;
@@ -541,7 +543,19 @@ AddTileToCell:
     sta GameState             ; release the joystick
 
 EndRandomTile:
-    inc RandomNumber          ; Feed the random number generator
+    inc FrameCounter
+
+; Update the RNG, using a simple 8-bit LFSR.
+; it will cycle through all 255 non-zero values, but we
+; need to handle the initial zero case too.
+    lda RandomNumber
+    beq ApplyRandomEor
+    asl
+    bcc NoRandomEor
+ApplyRandomEor:
+    eor #$1d
+NoRandomEor:
+    sta RandomNumber
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; SELECT, RESET AND P0 FIRE BUTTON ;;
@@ -759,7 +773,7 @@ EndGameOverDetection:
     lda GameState
     cmp #GameOverFX
     bne EndGameOverEffects
-    lda RandomNumber              ; Flash the background
+    lda FrameCounter              ; Flash the background
     sta COLUBK
     sta CurrentBGColor
     inc GameOverEffectCounter     ; Keep on for ~2.3s (+/-0.2 for PAL/NTSC diff)
@@ -1102,7 +1116,7 @@ MultiplicationDone:
     cpx #FirstDataCellOffset+12
     bpl ColorsFromValues          ; Title 3rd     row => tile values (=0)
 ColorsFromRainbow:                ; Title 1st/2nd row => rainbow
-    lda RandomNumber
+    lda FrameCounter
     sta RowTileColor
     adc #10
     adc CellCursor
